@@ -191,7 +191,22 @@ const Sync = async ({ ipfs, log, events, onSynced, start, timeout }) => {
         const { signal } = timeoutController
         try {
           peers.add(peerId)
-          const stream = await libp2p.dialProtocol(remotePeer, headsSyncAddress, { signal })
+          let stream
+          const maxRetries = 3
+          for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+            console.log(`Peer ${peerId} subscribed to ${address}, dialing. attempt ${attempt}/${maxRetries}`)
+              stream = await libp2p.dialProtocol(remotePeer, headsSyncAddress, { signal })
+              console.log(`Successfully dialed ${peerId} on attempt ${attempt}`)
+              break
+            } catch (e) {
+              console.error(`Dial attempt ${attempt} failed for ${peerId}: ${e.message}`)
+              if (attempt === maxRetries || e.name === 'UnsupportedProtocolError') {
+                throw e
+              }
+              await new Promise(resolve => setTimeout(resolve, 1000 * attempt))
+            }
+          }
           await pipe(sendHeads, stream, receiveHeads(peerId))
         } catch (e) {
           peers.delete(peerId)
