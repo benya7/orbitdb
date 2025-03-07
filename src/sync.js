@@ -168,6 +168,9 @@ const Sync = async ({ ipfs, log, events, onSynced, start, timeout }) => {
   const handleReceiveHeads = async ({ connection, stream }) => {
     const peerId = String(connection.remotePeer)
     try {
+      if (stream.status !== 'open') {
+        return
+      }
       peers.add(peerId)
       await pipe(stream, receiveHeads(peerId), sendHeads, stream)
     } catch (e) {
@@ -191,7 +194,6 @@ const Sync = async ({ ipfs, log, events, onSynced, start, timeout }) => {
         const timeoutController = new TimeoutController(timeout)
         const { signal } = timeoutController
         try {
-          peers.add(peerId)
           const stream = await pRetry(
             () => libp2p.dialProtocol(remotePeer, headsSyncAddress, { signal }),
             {
@@ -200,6 +202,10 @@ const Sync = async ({ ipfs, log, events, onSynced, start, timeout }) => {
               signal,
             }
           )
+          if (stream.status !== 'open') {
+            return
+          }
+          peers.add(peerId)
           await pipe(sendHeads, stream, receiveHeads(peerId))
         } catch (e) {
           peers.delete(peerId)
